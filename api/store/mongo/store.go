@@ -902,6 +902,9 @@ func buildFilterQuery(filters []models.Filter) ([]bson.M, error) {
 			case "bool":
 				operator, _ := strconv.ParseBool(params.Value)
 				property = bson.M{"$eq": operator}
+
+			case "gt":
+				property = bson.M{"$gt": params.Value}
 			}
 
 			queryFilter = append(queryFilter, bson.M{
@@ -938,8 +941,45 @@ func buildFilterQuery(filters []models.Filter) ([]bson.M, error) {
 	return queryMatch, nil
 }
 
-func (s *Store) ListUsers(ctx context.Context, pagination paginator.Query) ([]models.User, int, error) {
-	query := []bson.M{}
+func (s *Store) ListUsers(ctx context.Context, pagination paginator.Query, filters []models.Filter) ([]models.User, int, error) {
+	queryMatch, err := buildFilterQuery(filters)
+	query := []bson.M{
+		{
+			"$lookup": bson.M{
+				"from":         "devices",
+				"localField":   "tenant_id",
+				"foreignField": "tenant_id",
+				"as":           "devices",
+			},
+		},
+		{
+			"$lookup": bson.M{
+				"from":         "sessions",
+				"localField":   "devices.uid",
+				"foreignField": "device_uid",
+				"as":           "sessions",
+			},
+		},
+		{
+			"$project": bson.M{
+				"name":      1,
+				"email":     1,
+				"username":  1,
+				"password":  1,
+				"tenant_id": 1,
+				"devices": bson.M{
+					"$size": "$devices",
+				},
+				"sessions": bson.M{
+					"$size": "$sessions",
+				},
+			},
+		},
+	}
+
+	if len(queryMatch) > 0 {
+		query = append(query, queryMatch...)
+	}
 
 	// Only match for the respective tenant if requested
 	if tenant := apicontext.TenantFromContext(ctx); tenant != nil {
