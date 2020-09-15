@@ -52,7 +52,7 @@
             <v-card-actions>
               <v-btn
                 text
-                @click="finished"
+                @click="finish"
               >
                 Close
               </v-btn>
@@ -79,7 +79,7 @@
             <v-card-actions>
               <v-btn
                 text
-                @click="finished"
+                @click="finish"
               >
                 Close
               </v-btn>
@@ -118,7 +118,7 @@
             <v-card-actions>
               <v-btn
                 text
-                @click="finished"
+                @click="finish"
               >
                 Close
               </v-btn>
@@ -143,13 +143,13 @@
               color="grey lighten-4"
               height="250px"
             >
-              <WelcomeFourthScreen :command="command()" />
+              <WelcomeFourthScreen />
             </v-card>
             <v-card-actions>
               <v-spacer />
               <v-btn
                 color="primary"
-                @click="finished"
+                @click="finish"
               >
                 Finish
               </v-btn>
@@ -178,64 +178,65 @@ export default {
     WelcomeFourthScreen,
   },
 
-  props: {
-    dialog: {
-      type: Boolean,
-      required: true,
-    },
-
-    curl: {
-      type: Object,
-      required: true,
-    },
-  },
-
   data() {
     return {
       e1: 1,
+      show: false,
       enable: false,
       polling: null,
-      trigger: null,
+      curl: {
+        hostname: window.location.hostname,
+        tenant: this.$store.getters['auth/tenant'],
+      },
     };
   },
 
   computed: {
-    show: {
-      get() {
-        return this.dialog;
-      },
-
-      set(value) {
-        this.$emit('show', value);
-      },
+    stats() {
+      return this.$store.getters['stats/stats'];
     },
   },
 
-  created() {
-    this.pollingDevices();
+  async created() {
+    await this.$store.dispatch('stats/get');
+
+    this.show = this.showScreenWelcome();
   },
 
   methods: {
-    beforeDestroy() {
-      clearInterval(this.polling);
+    showScreenWelcome() {
+      let status = false;
+
+      if (localStorage.getItem('onceWelcome') === null && this.hasNoRegisteredDevice()) {
+        localStorage.setItem('onceWelcome', true);
+
+        this.pollingDevices();
+        status = true;
+      }
+      return status;
+    },
+
+    hasNoRegisteredDevice() {
+      return this.stats.registered_devices === 0
+        && this.stats.pending_devices === 0
+        && this.stats.rejected_devices === 0;
     },
 
     command() {
       return `curl "${window.location.protocol}//${this.curl.hostname}/install.sh?tenant_id=${this.curl.tenant}" | sh`;
     },
 
-    finished() {
-      clearTimeout(this.trigger);
+    finish() {
       this.show = false;
-      this.$emit('finishedEvent', false);
-      this.beforeDestroy();
+      clearTimeout(this.polling);
     },
 
     pollingDevices() {
       this.polling = setInterval(async () => {
         try {
-          await this.$store.dispatch('stats/get', {});
-          this.enable = this.checkDevice();
+          await this.$store.dispatch('stats/get');
+
+          this.enable = this.stats.pending_devices !== 0;
           if (this.enable) {
             this.e1 = 3;
             clearTimeout(this.polling);
@@ -246,14 +247,10 @@ export default {
       }, 3000);
     },
 
-    checkDevice() {
-      return this.$store.getters['stats/stats'].pending_devices !== 0;
-    },
-
-    acceptDevice() {
+    async acceptDevice() {
       const device = this.$store.getters['devices/getFirstPending'];
       try {
-        this.$store.dispatch('devices/accept', device.uid);
+        await this.$store.dispatch('devices/accept', device.uid);
 
         this.$store.dispatch('notifications/fetch');
         this.$store.dispatch('stats/get');

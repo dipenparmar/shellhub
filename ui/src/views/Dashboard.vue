@@ -71,12 +71,7 @@
       </v-col>
     </v-row>
 
-    <Welcome
-      v-if="show"
-      :dialog="true"
-      :curl="curl"
-      @finishedEvent="receiveFinish"
-    />
+    <Welcome />
   </fragment>
 </template>
 
@@ -95,13 +90,7 @@ export default {
 
   data() {
     return {
-      curl: {
-        hostname: window.location.hostname,
-        tenant: this.$store.getters['auth/tenant'],
-      },
       flag: false,
-      hasDevicesRegistered: false,
-      show: false,
       items: [
         {
           title: 'Registered Devices',
@@ -143,12 +132,6 @@ export default {
   async created() {
     try {
       await this.$store.dispatch('stats/get');
-
-      this.hasDevicesRegistered = this.initialState();
-      if (localStorage.getItem('onceWelcome') === null) {
-        localStorage.setItem('onceWelcome', true);
-        this.show = !this.hasDevicesRegistered;
-      }
     } catch {
       this.$store.dispatch('modals/showSnackbarErrorLoading', this.$errors.dashboard);
     }
@@ -157,19 +140,6 @@ export default {
   mounted() {
     this.flag = localStorage.getItem('flag');
     localStorage.removeItem('flag');
-  },
-
-  methods: {
-    receiveFinish(params) {
-      this.hasDevicesRegistered = params;
-      this.show = false;
-    },
-
-    initialState() {
-      return this.stats.registered_devices !== 0
-        || this.stats.pending_devices !== 0
-        || this.stats.rejected_devices !== 0;
-    },
   },
 };
 
