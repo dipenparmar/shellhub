@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 type Filter struct {
@@ -10,6 +11,7 @@ type Filter struct {
 }
 
 func (f *Filter) UnmarshalJSON(data []byte) error {
+	fmt.Println("teste")
 	var params json.RawMessage
 
 	type filter Filter
